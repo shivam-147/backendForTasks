@@ -10,13 +10,12 @@ require('./config/config')()
 const app = express()
 const PORT = process.env.PORT || 3000
 
+app.use(cors())
+
 app.use(express.json())
 app.use(cookieParser())
 app.use('/user', user)
 app.use('/task', task)
-app.use(cors({
-    origin: '*'
-}))
 
 app.get('/', (req, res) => {
     res.send('hello, world');
