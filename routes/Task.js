@@ -1,18 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const taskModel = require('../models/task.model');
-const IsLoggedIn = require('../middleware/IsLoggedIn');
+const authenticateToken = require('../middleware/authenticateToken');
 const userModel = require('../models/user.model')
 const jwt = require('jsonwebtoken')
 
-router.post('/add-task', IsLoggedIn, async (req, res) => {
+router.post('/add-task', authenticateToken, async (req, res) => {
 
     try {
-        const { title, content, status } = req.body
+        const { title, content } = req.body
         const task = new taskModel({
             title,
             content,
-            status,
+            status: 'pending',
             user: req.user.userId
         })
         await task.save()
@@ -28,25 +28,25 @@ router.post('/add-task', IsLoggedIn, async (req, res) => {
     }
 })
 
-router.get('/get-tasks', IsLoggedIn, async (req, res) => {
+router.get('/get-tasks', authenticateToken, async (req, res) => {
     try {
         const tasks = await taskModel.find({ user: req.user.userId })
-        res.status(200).json(tasks)
+        res.status(200).json({ error: false, tasks })
     }
     catch (err) {
-        res.status(500).json({ message: 'Error is getting tasks' })
+        res.status(500).json({ error: true, message: 'Error is getting tasks' })
     }
 })
 
-router.put('/update-task/:id', IsLoggedIn, async (req, res) => {
+router.put('/update-task/:id', authenticateToken, async (req, res) => {
     try {
 
         const id = req.params.id
-        const { title, content, status } = req.body
+        const { title, content, status = 'pending' } = req.body
         const task = await taskModel.findOne({ _id: id })
 
         if (!title || !content || !status)
-            res.status(400).json({ message: "title, content or status is missing" })
+            res.json({ error: true, message: "title, content or status is missing" })
 
         task.title = title
         task.content = content
@@ -61,14 +61,13 @@ router.put('/update-task/:id', IsLoggedIn, async (req, res) => {
     }
 })
 
-router.put('/update-status/:id', IsLoggedIn, async (req, res) => {
+router.put('/update-status/:id', authenticateToken, async (req, res) => {
 
     try {
         const id = req.params.id
-        const { checked } = req.body
 
         const task = await taskModel.findOne({ _id: id })
-        task.status = checked ? 'completed' : 'pending'
+        task.status = task.status === 'pending' ? 'completed' : 'pending'
 
         await task.save()
         res.status(200).json({ message: 'Status updated successfully' })
@@ -78,7 +77,7 @@ router.put('/update-status/:id', IsLoggedIn, async (req, res) => {
     }
 })
 
-router.delete('/delete/:id', IsLoggedIn, async (req, res) => {
+router.delete('/delete/:id', authenticateToken, async (req, res) => {
     try {
         const id = req.params.id
         await taskModel.deleteOne({ _id: id })

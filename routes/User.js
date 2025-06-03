@@ -3,26 +3,23 @@ const User = require('../models/user.model')
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcrypt')
 const router = express.Router()
-const IsLoggedIn = require('../middleware/IsLoggedIn')
+const authenticateToken = require('../middleware/authenticateToken')
 
 
-router.get('/', IsLoggedIn, (req, res) => {
-    const token = req.cookies['token']
-    const user = jwt.verify(token, process.env.JWT_SECRET)
-    console.log(req.user)
-    res.json(user)
+
+router.get('/test', (req, res) => {
+    res.status(200).json({ message: 'everything is ok...' })
 })
 
 // Register
 router.post('/register', async (req, res) => {
-
     const { fullname, email, password } = req.body
 
     try {
         // Check if user already exists
         const existingUser = await User.findOne({ email })
         if (existingUser) {
-            return res.status(400).json({ message: 'User already exists' })
+            res.json({ error: true, message: 'User already exists' })
         }
         // hash the password
         bcrypt.genSalt(10, async (err, salt) => {
@@ -36,7 +33,7 @@ router.post('/register', async (req, res) => {
 
                 const token = jwt.sign({ userId: user._id, email: user.email }, process.env.JWT_SECRET)
                 res.cookie('token', token)
-                res.status(200).json({ message: 'user registered successfully', user: { email: user.email, userId: user._id } })
+                res.status(200).json({ error: false, message: 'user registered successfully', accessToken: token })
             })
         })
     }
@@ -52,16 +49,16 @@ router.post('/login', async (req, res) => {
         const user = await User.findOne({ email })
 
         if (!user)
-            res.status(500).json({ message: 'Email or password is invalid' })
+            res.json({ error: true, message: 'Email or password is invalid' })
 
         bcrypt.compare(password, user.password, (err, result) => {
             if (!result)
-                res.status(500).json({ message: 'Email or password is invalid' })
+                res.json({ error: true, message: 'Email or password is invalid' })
 
-            const token = jwt.sign({ userId: user._id, email: user.email }, process.env.JWT_SECRET)
+            const token = jwt.sign({ userId: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '3600m' })
             res.cookie('token', token)
             req.user = { email: user.email, userId: user._id }
-            res.status(200).json({ message: 'Login successful', user: { email: user.email, userId: user._id } })
+            res.status(200).json({ message: 'Login successful', user: { email: user.email, userId: user._id }, accessToken: token })
         })
     }
     catch (err) {
@@ -69,7 +66,7 @@ router.post('/login', async (req, res) => {
     }
 })
 
-router.get('/logout', IsLoggedIn, (req, res) => {
+router.get('/logout', authenticateToken, (req, res) => {
     try {
         res.cookie('token', '')
         res.status(200).json({ message: 'user logged out successfully' })
@@ -78,6 +75,7 @@ router.get('/logout', IsLoggedIn, (req, res) => {
         res.status(500).json({ message: 'Error at logout' })
     }
 })
+
 
 
 module.exports = router;
